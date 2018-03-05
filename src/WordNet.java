@@ -1,3 +1,5 @@
+import java.lang.reflect.Array;
+import java.util.ArrayList;
 import java.util.Iterator;
 import edu.princeton.cs.algs4.Digraph;
 import edu.princeton.cs.algs4.In;
@@ -8,14 +10,33 @@ public class WordNet {
     private Words words;
 
     private class Words {
-        private String[] words;
+        private ArrayList<String> nouns = new ArrayList<String>();
+        private ArrayList<String> glosses = new ArrayList<String>();
         public Words(In in) {
-            this.words = in.readAllLines();
+            String[] lines = in.readAllLines();
+            for (int i = 0; i < lines.length; i++) {
+                String[] line = lines[i].split(",");
+                if(i != Integer.parseInt(line[0])) {
+                    System.out.println("oh no! this shouldn't happen!");
+//                    throw new Exception(); // TODO: what kind of exception
+                }
+                nouns.add(line[1]);
+                glosses.add(line[2]);
+            }
         }
 
         public int size() {
-            return words.length;
+            return nouns.size();
         }
+
+        public Iterable<String> getNouns() {
+            return nouns;
+        }
+
+        public boolean contains(String noun) {
+            return nouns.contains(noun);
+        }
+
     }
 
     // constructor takes the name of the two input files
@@ -35,21 +56,14 @@ public class WordNet {
 
     // returns all WordNet nouns
     public Iterable<String> nouns(){
-        // TODO: this is stubbed
-        return new Iterable<String>() {
-            @Override
-            public Iterator<String> iterator() {
-                return null;
-            }
-        };
+        return words.getNouns();
     }
 
     // is the word a WordNet noun?
     public boolean isNoun(String word) {
         if (word == null)
             throw new java.lang.IllegalArgumentException();
-        // TODO: this is stubbed
-        return false;
+        return words.contains(word);
     }
 
     // distance between nounA and nounB (defined below)
@@ -72,12 +86,32 @@ public class WordNet {
     // do unit testing of this class
     public static void main(String[] args) {
         System.out.println("testConstructor: " + testConstructor("synsets3.txt", "hypernyms3InvalidCycle.txt"));
+        System.out.println("testNouns: " + testNouns());
+        System.out.println("testIsNoun: " + testIsNoun());
+
     }
 
     private static boolean testConstructor(String synsetsFile, String hypernymsFile) {
-        WordNet thinger = new WordNet("wordnet/" + synsetsFile, "wordnet/" + hypernymsFile);
-        System.out.println("# vertices: " + thinger.G.V());
-        System.out.println("# edges: " + thinger.G.E());
-        return thinger.getClass().getName() == "WordNet";
+        WordNet wordnet = new WordNet("wordnet/" + synsetsFile, "wordnet/" + hypernymsFile);
+        System.out.println("# vertices: " + wordnet.G.V());
+        System.out.println("# edges: " + wordnet.G.E());
+        return wordnet.getClass().getName() == "WordNet";
     }
+
+    private static boolean testNouns() {
+        String synsetsFile = "synsets15.txt";
+        String hypernymsFile = "hypernyms15Path.txt";
+        WordNet wordnet = new WordNet("wordnet/" + synsetsFile, "wordnet/" + hypernymsFile);
+        System.out.println(wordnet.nouns().toString());
+        return wordnet.nouns().toString().equals("[a, b, c, d, e, f, g, h, i, j, k, l, m, n, o]");
+    }
+
+    private static boolean testIsNoun() {
+        String synsetsFile = "synsets15.txt";
+        String hypernymsFile = "hypernyms15Path.txt";
+        WordNet wordnet = new WordNet("wordnet/" + synsetsFile, "wordnet/" + hypernymsFile);
+        return wordnet.isNoun("a") && !wordnet.isNoun("x");
+
+    }
+
 }
