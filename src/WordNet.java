@@ -78,17 +78,7 @@ public class WordNet {
         return words.contains(word);
     }
 
-    // distance is the minimum length of any ancestral path between any synset v of A and any synset w of B.
-    public int distance(String nounA, String nounB) {
-        Iterable<Integer> synsetsA = words.findAll(nounA);
-        Iterable<Integer> synsetsB = words.findAll(nounB);
-
-        if (nounA == null || nounB == null)
-            throw new java.lang.IllegalArgumentException();
-
-        BreadthFirstDirectedPaths bfsA = new BreadthFirstDirectedPaths(G, synsetsA);
-        BreadthFirstDirectedPaths bfsB = new BreadthFirstDirectedPaths(G, synsetsB);
-
+    private int shotestPathAncestor(BreadthFirstDirectedPaths bfsA, BreadthFirstDirectedPaths bfsB) {
         // find ancestors of nounA - obvious candidate for refactoring
         ArrayList<Integer> ancestors = new ArrayList<Integer>();
         for (int v = 0; v < words.size(); v++) {
@@ -106,13 +96,31 @@ public class WordNet {
         ancestors.retainAll(ancestorsB);
 
         Integer distance = Integer.MAX_VALUE;
+        int shotestPathAncestor = -1;
         for (int ancestor: ancestors) {
             int d = bfsA.distTo(ancestor) + bfsB.distTo(ancestor);
-            if (d < distance)
+            if (d < distance) {
                 distance = d;
+                shotestPathAncestor = ancestor;
+            }
         }
+        return shotestPathAncestor;
+    }
+    // distance is the minimum length of any ancestral path between any synset v of A and any synset w of B.
+    public int distance(String nounA, String nounB) {
+        if (nounA == null || nounB == null)
+            throw new java.lang.IllegalArgumentException();
 
-        return distance; // still stubbed
+        Iterable<Integer> synsetsA = words.findAll(nounA);
+        Iterable<Integer> synsetsB = words.findAll(nounB);
+
+        BreadthFirstDirectedPaths bfsA = new BreadthFirstDirectedPaths(G, synsetsA);
+        BreadthFirstDirectedPaths bfsB = new BreadthFirstDirectedPaths(G, synsetsB);
+
+        int ancestor = shotestPathAncestor(bfsA, bfsB);
+        int distance = bfsA.distTo(ancestor) + bfsB.distTo(ancestor);
+
+        return distance;
     }
 
     // a synset (second field of synsets.txt) that is the common ancestor of nounA and nounB
@@ -120,8 +128,15 @@ public class WordNet {
     public String sap(String nounA, String nounB) {
         if (nounA == null || nounB == null)
             throw new java.lang.IllegalArgumentException();
-        // TODO: this is stubbed
-        return "I am not here";
+
+        Iterable<Integer> synsetsA = words.findAll(nounA);
+        Iterable<Integer> synsetsB = words.findAll(nounB);
+
+        BreadthFirstDirectedPaths bfsA = new BreadthFirstDirectedPaths(G, synsetsA);
+        BreadthFirstDirectedPaths bfsB = new BreadthFirstDirectedPaths(G, synsetsB);
+
+        int ancestor = shotestPathAncestor(bfsA, bfsB);
+        return words.nouns.get(ancestor);
     }
 
     // do unit testing of this class
@@ -130,6 +145,7 @@ public class WordNet {
         System.out.println("testNouns: " + testNouns());
         System.out.println("testIsNoun: " + testIsNoun());
         System.out.println("testDistance: " + testDistance());
+        System.out.println("testSap: " + testSap());
     }
 
     private static boolean testConstructor(String synsetsFile, String hypernymsFile) {
@@ -158,9 +174,40 @@ public class WordNet {
         String synsetsFile = "synsets100-subgraph.txt";
         String hypernymsFile = "hypernyms100-subgraph.txt";
         WordNet wordnet = new WordNet("wordnet/" + synsetsFile, "wordnet/" + hypernymsFile);
+
         boolean test1 = wordnet.distance("horror", "stinker") == 2;
         boolean test2 = wordnet.distance("thing", "thing") == 0;
+
         return test1 && test2;
+    }
+
+    private static boolean testSap() {
+        String synsetsFile = "synsets100-subgraph.txt";
+        String hypernymsFile = "hypernyms100-subgraph.txt";
+        WordNet wordnet = new WordNet("wordnet/" + synsetsFile, "wordnet/" + hypernymsFile);
+
+//        for(int i=0; i<wordnet.words.size(); i++)
+//            for(int j=0; j<wordnet.words.size(); j++) {
+//                String w1 = wordnet.words.nouns.get(i);
+//                String w2 = wordnet.words.nouns.get(j);
+//                String w = wordnet.sap(w1, w2);
+//                if(5 == (i*wordnet.words.size()+j)%116)
+//                    System.out.println(w1 + ", " + w2 + ": " + w);
+//            }
+
+        boolean test1 = wordnet.sap("transaminase aminotransferase aminopherase", "filaggrin").equals("protein");
+        boolean test2 = wordnet.sap("transferase", "immunoglobulin_E IgE").equals("protein");
+        boolean test3 = wordnet.sap("transferrin beta_globulin siderophilin", "plasma_protein").equals("protein");
+        boolean test4 = wordnet.sap("urease", "ferritin").equals("protein");
+        boolean test5 = wordnet.sap("fibrinogen factor_I", "unit building_block").equals("unit building_block");
+        boolean test6 = wordnet.sap("freshener", "change").equals("thing");
+        boolean test7 = wordnet.sap("gamma_globulin human_gamma_globulin", "globin hematohiston haematohiston").equals("protein");
+        boolean test8 = wordnet.sap("horror", "stinker").equals("thing");
+        boolean test9 = wordnet.sap("thing", "thing").equals("thing");
+
+        return test1 && test2 && test3 && test4 && test5 && test6 && test7 && test8 && test9;
+
+
     }
 
 }
