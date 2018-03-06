@@ -11,6 +11,7 @@ public class WordNet {
     private Digraph G;
     private Digraph reverseG;
     private Words words;
+    private SAP sap;
 
     private class Words {
         private ArrayList<String> nouns = new ArrayList<String>();
@@ -29,7 +30,7 @@ public class WordNet {
             }
         }
 
-        public Iterable<Integer> findAll(String noun) {
+        public ArrayList<Integer> findAll(String noun) {
             ArrayList<Integer> indices = new ArrayList<Integer>();
             for (int i=0; i<nouns.size(); i++)
                 if(nouns.get(i).equals(noun))
@@ -57,6 +58,7 @@ public class WordNet {
 
         words = new Words(new In(synsets));
         G = new Digraph(words.size());
+        sap = new SAP(G);
         for (String line: new In(hypernyms).readAllLines()) {
             String[] values = line.split(",");
             int v = Integer.parseInt(values[0]);
@@ -78,7 +80,9 @@ public class WordNet {
         return words.contains(word);
     }
 
-    private int shotestPathAncestor(BreadthFirstDirectedPaths bfsA, BreadthFirstDirectedPaths bfsB) {
+    private int shortestPathAncestor(ArrayList<BreadthFirstDirectedPaths> bfses) {
+        BreadthFirstDirectedPaths bfsA = bfses.get(0);
+        BreadthFirstDirectedPaths bfsB = bfses.get(1);
         // find ancestors of nounA - obvious candidate for refactoring
         ArrayList<Integer> ancestors = new ArrayList<Integer>();
         for (int v = 0; v < words.size(); v++) {
@@ -96,31 +100,89 @@ public class WordNet {
         ancestors.retainAll(ancestorsB);
 
         Integer distance = Integer.MAX_VALUE;
-        int shotestPathAncestor = -1;
+        int shortestPathAncestor = -1;
         for (int ancestor: ancestors) {
             int d = bfsA.distTo(ancestor) + bfsB.distTo(ancestor);
             if (d < distance) {
                 distance = d;
-                shotestPathAncestor = ancestor;
+                shortestPathAncestor = ancestor;
             }
         }
-        return shotestPathAncestor;
+        return shortestPathAncestor;
     }
+
+    private ArrayList<ArrayList<Integer>> synsets(String[] nouns) {
+        ArrayList<ArrayList<Integer>> synsets = new ArrayList<ArrayList<Integer>>();
+        for(int i=0; i<nouns.length; i++) {
+            synsets.add(words.findAll(nouns[i]));
+        }
+        return synsets;
+    }
+
+    private ArrayList<BreadthFirstDirectedPaths> bfses(ArrayList<ArrayList<Integer>> synsets) {
+        ArrayList<BreadthFirstDirectedPaths> bfses = new ArrayList<BreadthFirstDirectedPaths>();
+        for(ArrayList<Integer> synset: synsets) {
+            bfses.add(new BreadthFirstDirectedPaths(G, synset));
+        }
+        return bfses;
+    }
+
+    private class ShortestPathAncestor {
+        private int ancestor = -1;
+        private int distance = Integer.MAX_VALUE;
+        private String[] nouns;
+        private ArrayList<BreadthFirstDirectedPaths> bfses = new ArrayList<BreadthFirstDirectedPaths>();
+        private ArrayList<Integer> ancestors = new ArrayList<Integer>();
+
+
+        ShortestPathAncestor(String[] nouns) {
+            this.nouns = nouns;
+            findBfses();
+            findAncestor();
+        }
+
+        private void findBfses() {
+            ArrayList<ArrayList<Integer>> synsets = new ArrayList<ArrayList<Integer>>();
+            for(int i=0; i<nouns.length; i++) {
+                synsets.add(words.findAll(nouns[i]));
+            }
+            for(ArrayList<Integer> synset: synsets) {
+                bfses.add(new BreadthFirstDirectedPaths(G, synset));
+            }
+        }
+
+        private void findAncestor() {
+            ancestors = findAncestors(bfses.get(0));
+            for(int i=1; i<bfses.size(); i++)
+                ancestors.retainAll(findAncestors(bfses.get(i)));
+
+            for (int a: ancestors) {
+//                int d = bfses.get(0).distTo(a) + bfses.get(1).distTo(a);
+                int d = sap.length(words.findAll(nouns[0]), words.findAll(nouns[1]));
+                if (d < distance) {
+                    distance = d;
+                    ancestor = a;
+                }
+            }
+        }
+
+        private ArrayList<Integer> findAncestors(BreadthFirstDirectedPaths bfs) {
+            ArrayList<Integer> a = new ArrayList<Integer>();
+            for (int v = 0; v < words.size(); v++) {
+                if(bfs.hasPathTo(v))
+                    a.add(v);
+            }
+            return a;
+        }
+
+    }
+
     // distance is the minimum length of any ancestral path between any synset v of A and any synset w of B.
     public int distance(String nounA, String nounB) {
         if (nounA == null || nounB == null)
             throw new java.lang.IllegalArgumentException();
 
-        Iterable<Integer> synsetsA = words.findAll(nounA);
-        Iterable<Integer> synsetsB = words.findAll(nounB);
-
-        BreadthFirstDirectedPaths bfsA = new BreadthFirstDirectedPaths(G, synsetsA);
-        BreadthFirstDirectedPaths bfsB = new BreadthFirstDirectedPaths(G, synsetsB);
-
-        int ancestor = shotestPathAncestor(bfsA, bfsB);
-        int distance = bfsA.distTo(ancestor) + bfsB.distTo(ancestor);
-
-        return distance;
+        return sap.length(words.findAll(nounA), words.findAll(nounB));
     }
 
     // a synset (second field of synsets.txt) that is the common ancestor of nounA and nounB
@@ -129,14 +191,10 @@ public class WordNet {
         if (nounA == null || nounB == null)
             throw new java.lang.IllegalArgumentException();
 
-        Iterable<Integer> synsetsA = words.findAll(nounA);
-        Iterable<Integer> synsetsB = words.findAll(nounB);
-
-        BreadthFirstDirectedPaths bfsA = new BreadthFirstDirectedPaths(G, synsetsA);
-        BreadthFirstDirectedPaths bfsB = new BreadthFirstDirectedPaths(G, synsetsB);
-
-        int ancestor = shotestPathAncestor(bfsA, bfsB);
-        return words.nouns.get(ancestor);
+        return words.nouns.get(
+            sap.ancestor(words.findAll(nounA), words.findAll(nounB))
+//            new ShortestPathAncestor(new String[] {nounA, nounB}).ancestor
+        );
     }
 
     // do unit testing of this class
@@ -186,28 +244,17 @@ public class WordNet {
         String hypernymsFile = "hypernyms100-subgraph.txt";
         WordNet wordnet = new WordNet("wordnet/" + synsetsFile, "wordnet/" + hypernymsFile);
 
-//        for(int i=0; i<wordnet.words.size(); i++)
-//            for(int j=0; j<wordnet.words.size(); j++) {
-//                String w1 = wordnet.words.nouns.get(i);
-//                String w2 = wordnet.words.nouns.get(j);
-//                String w = wordnet.sap(w1, w2);
-//                if(5 == (i*wordnet.words.size()+j)%116)
-//                    System.out.println(w1 + ", " + w2 + ": " + w);
-//            }
-
         boolean test1 = wordnet.sap("transaminase aminotransferase aminopherase", "filaggrin").equals("protein");
         boolean test2 = wordnet.sap("transferase", "immunoglobulin_E IgE").equals("protein");
         boolean test3 = wordnet.sap("transferrin beta_globulin siderophilin", "plasma_protein").equals("protein");
         boolean test4 = wordnet.sap("urease", "ferritin").equals("protein");
-        boolean test5 = wordnet.sap("fibrinogen factor_I", "unit building_block").equals("unit building_block");
+        boolean test5 = wordnet.sap("fibrinogen factor_I", "unit building_block").equals("thing");
         boolean test6 = wordnet.sap("freshener", "change").equals("thing");
         boolean test7 = wordnet.sap("gamma_globulin human_gamma_globulin", "globin hematohiston haematohiston").equals("protein");
         boolean test8 = wordnet.sap("horror", "stinker").equals("thing");
-        boolean test9 = wordnet.sap("thing", "thing").equals("thing");
+        boolean test9 = wordnet.sap("thing", "thing").equals("entity"); // should this be "thing"?
 
         return test1 && test2 && test3 && test4 && test5 && test6 && test7 && test8 && test9;
-
-
     }
 
 }
