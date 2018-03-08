@@ -13,19 +13,14 @@ public class WordNet {
     private final SAP sap;
 
     private class Words {
-//        private final ArrayList<String> glosses = new ArrayList<String>();
         private final Map<String, ArrayList<Integer>> idsLookup = new HashMap<String, ArrayList<Integer>>();
         private final Map<Integer, ArrayList<String>> nounsLookup = new HashMap<Integer, ArrayList<String>>();
 
         public Words(In in) {
             String[] lines = in.readAllLines();
             for (int i = 0; i < lines.length; i++) {
-                String[] line = lines[i].split(",");
-                if (i != Integer.parseInt(line[0])) {
-                    System.out.println("oh no! this shouldn't happen! maybe my inputs are garbage, or maybe I shouldn't rely on add order for indexing");
-//                    throw new Exception(); // what kind of exception
-                }
-                for(String noun: line[1].split(" ")) {
+                String id = lines[i].split(",")[0], nouns = lines[i].split(",")[1];
+                for(String noun: nouns.split(" ")) {
                     if(idsLookup.get(noun) == null) {
                         idsLookup.put(noun, new ArrayList<Integer>());
                     }
@@ -36,7 +31,6 @@ public class WordNet {
                     }
                     nounsLookup.get(i).add(noun);
                 }
-//                glosses.add(line[2]);
             }
         }
 
@@ -91,14 +85,20 @@ public class WordNet {
     }
 
     private boolean isRootedDag(Digraph G) {
-        boolean isDag = !(new DirectedCycle(G).hasCycle());
-        if(!isDag) return false;
+        return isRooted(G) && isDag(G);
+    }
+
+    private boolean isRooted(Digraph G) {
         int roots = 0;
         for(int v = 0; v < G.V(); v++) {
             if(G.outdegree(v) == 0 && G.indegree(v) > 0)
                 roots++;
         }
         return roots == 1;
+    }
+
+    private boolean isDag(Digraph G) {
+        return !(new DirectedCycle(G).hasCycle());
     }
 
     // returns all WordNet nouns
